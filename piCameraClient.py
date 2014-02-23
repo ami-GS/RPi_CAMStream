@@ -1,4 +1,3 @@
-import ws4py
 import numpy
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
@@ -6,6 +5,7 @@ from tornado.ioloop import IOLoop
 import cv2.cv as cv
 import cv2
 from threading import Thread
+import sys
 import wsaccel
 wsaccel.patch_tornado()
 
@@ -33,29 +33,46 @@ class ShowPicture():
     def run(self):
         while True:
             if len(Frames):
-                narray = numpy.fromstring(Frames.pop(0), dtype="uint8")
-                decimg = cv2.imdecode(narray, 1)
+                decimg = self._decode_image(Frames.pop(0))
                 self._show_image(decimg)
                 if cv.WaitKey(30) == 27:
                     break
+
+    def _decode_image(self, img):
+        narray = numpy.fromstring(img, dtype="uint8")
+        decimg = cv2.imdecode(narray, 1)
+        return decimg
 
     def _show_image(self, img):
         cv2.imshow('RPiCAM', img) 
 
 
-def wsFuncCli():
-    ws = ReceiveWebSocket("ws://localhost:8080/camera", protocols=["http-only", "chat"])
+def wsFuncCli(host, port):
+    ws = ReceiveWebSocket("ws://"+host+":"+port+"/camera", protocols=["http-only", "chat"])
     ws.connect()
     IOLoop.instance().start()
 
 
-def main():    
+def main(host="localhost", port="8080"):    
     Show = ShowPicture()
-    t = Thread(target=wsFuncCli)
+    t = Thread(target=wsFuncCli, args=(host, port))
     t.setDaemon(True)
     t.start()
     Show.run()
             
 
+HELP = "Usage : piCameraClient.py [host] [port]"
+
 if __name__ == "__main__":
-    main()
+    args = sys.argv
+    if len(args) == 1:
+        print HELP
+        main()
+    elif len(args) == 2:
+        main(args[1])
+    elif len(args) == 3:
+        main(args[1], args[2])
+    else:
+        print HELP
+
+

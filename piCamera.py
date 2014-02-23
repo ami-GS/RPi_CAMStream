@@ -1,10 +1,11 @@
+#To do: I have to know the way to call RpiWSHandler constractor (__init__)
+
 from tornado.websocket import WebSocketHandler
 from tornado.ioloop import PeriodicCallback, IOLoop
 import tornado
 import tornado.httpserver
 from threading import Thread
 import cv2.cv as cv
-import cv2
 import zlib
 import time
 from imageprocess import ImageProcess
@@ -41,18 +42,15 @@ class RpiWSHandler(WebSocketHandler):
         global status
         self.callback.stop()
         status = False
-#        Frames = []
         print "WebSocket closed"
 
 class TakePicture():
     def __init__(self):
-#        Thread.__init__(self)
-#        self.setDaemon(True)
         self.capture = cv.CaptureFromCAM(0)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
         img = cv.QueryFrame(self.capture)
-        self.ImageProcess = ImageProcess(img)
+        self.ImageProcess = ImageProcess(img) #initialize ImageProcess
 
     def run(self):
         while True:
@@ -66,8 +64,7 @@ class TakePicture():
                 Frames.append(jpgString)
                 if cv.WaitKey(30) == 27:
                     break
-                
-
+                    
 
 def wsFunc():
     app = tornado.web.Application([
