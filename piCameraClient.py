@@ -1,3 +1,5 @@
+#todo: ReceiveWebSocket class shoud use initialize method
+
 import numpy
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
