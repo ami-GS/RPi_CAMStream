@@ -4,13 +4,15 @@ import tornado
 import tornado.httpserver
 from threading import Thread
 import cv2.cv as cv
+import cv2
 import zlib
 import time
 from imageprocess import ImageProcess
 
 
-IMAGE_WIDTH = 840
-IMAGE_HEIGHT = 630
+IMAGE_WIDTH = 200
+IMAGE_HEIGHT = 45
+INTERVAL = 80
 
 status = False
 class RpiWSHandler(WebSocketHandler):
@@ -37,31 +39,39 @@ class RpiWSHandler(WebSocketHandler):
     def on_close(self):
         global status
         self.callback.stop()
+        self.camera.init_frame()
         status = False
         print "WebSocket closed"
 
 class TakePicture():
     def __init__(self):
-        self.capture = cv.CaptureFromCAM(0)
+        self.capture = cv.CaptureFromCAM(-1)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
         cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
         img = cv.QueryFrame(self.capture)
         self.ImageProcess = ImageProcess(img) #initialize ImageProcess
-        self.Frames = []
-        
-    def run(self):
+        self.init_frame()
+
+    def start(self):
+        self._run()
+
+    def _run(self):
         while True:
             time.sleep(0.3) #wait until websocket is opened
             while status:
                 img = cv.QueryFrame(self.capture)
 
-                img = self.ImageProcess.motionDetect(img)
+#                img = self.ImageProcess.motionDetect(img)
 
+#                jpgString = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY),90]).tostring()
                 jpgString = cv.EncodeImage(".jpg", img).tostring()
                 self.Frames.append(jpgString)
-                if cv.WaitKey(30) == 27:
+                if cv.WaitKey(INTERVAL) == 27:
                     break
 
+    def init_frame(self):
+        self.Frames = []
+                
     def get_frame(self):
         if len(self.Frames):
             return self.Frames.pop(0)
@@ -82,7 +92,7 @@ def main():
     t = Thread(target=wsFunc, args=(camera,))
     t.setDaemon(True)
     t.start()
-    camera.run()
+    camera.start()
 
 if __name__ == "__main__":
     main()
