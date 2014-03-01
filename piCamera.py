@@ -1,3 +1,4 @@
+#To do: adapt multi client
 from tornado.websocket import WebSocketHandler
 from tornado.ioloop import PeriodicCallback, IOLoop
 import tornado
@@ -10,7 +11,7 @@ import time
 from imageprocess import ImageProcess
 
 
-IMAGE_WIDTH = 200
+IMAGE_WIDTH = 60
 IMAGE_HEIGHT = 45
 INTERVAL = 80
 
@@ -19,11 +20,17 @@ class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
         self.period = 10
+        self.callback = []
+        self.clientNum = 0
+
 
     def open(self):
         global status
         self.callback = PeriodicCallback(self._send_image, self.period)
+#        self.callback.append(PeriodicCallback(self._send_image, self.period))
+#        self.clientNum += 1
         status = True
+#        self.callback[self.clientNum].start()
         self.callback.start()
         print "WebSocket opened"
 
@@ -38,6 +45,7 @@ class RpiWSHandler(WebSocketHandler):
 
     def on_close(self):
         global status
+#        self.callback[2-self.clientNum].stop()
         self.callback.stop()
         self.camera.init_frame()
         status = False

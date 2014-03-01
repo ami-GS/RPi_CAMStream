@@ -10,8 +10,7 @@ import wsaccel
 wsaccel.patch_tornado()
 import time
 
-Frames = []
-interval = 100
+INTERVAL = 100
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
                 io_loop=None, ssl_options=None, headers=None):
@@ -38,13 +37,15 @@ class ReceiveWebSocket(TornadoWebSocketClient):
         IOLoop.instance().stop()
 
     def wait_until_connect(self):
-        print "connecting",
-        while not self.connecting:
-            print ".",
+        print "Now connecting",
+        trial = 0
+        while not self.connecting and trial < 20:
             time.sleep(0.5)
             ws = ReceiveWebSocket(self.url, protocols=self.protocols, Show=self.Show)
             ws.connect()
             IOLoop.instance().start()
+            trial += 1
+            print ".",
 
 class ShowPicture():
     def __init__(self):
@@ -56,7 +57,7 @@ class ShowPicture():
             if len(self.Frames):
                 decimg = self._decode_image(self.Frames.pop(0))
                 self._show_image(decimg)
-                if cv.WaitKey(interval) == 27:
+                if cv.WaitKey(INTERVAL) == 27:
                     IOLoop.instance().stop()
                     break
 
