@@ -10,7 +10,8 @@ import wsaccel
 wsaccel.patch_tornado()
 import time
 
-INTERVAL = 100
+INTERVAL = 40#100
+
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
                 io_loop=None, ssl_options=None, headers=None):
@@ -46,10 +47,14 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             IOLoop.instance().start()
             trial += 1
             print ".",
+        else:
+            print "\nConnection timeout"
+            cv2.destroyAllWindows()
+            sys.exit(-1)
 
 class ShowPicture():
     def __init__(self):
-        cv.NamedWindow("RPiCAM", 1)
+        cv2.namedWindow("RPiCAM", 1)
         self.Frames = []
 
     def run(self):
@@ -59,6 +64,7 @@ class ShowPicture():
                 self._show_image(decimg)
                 if cv.WaitKey(INTERVAL) == 27:
                     IOLoop.instance().stop()
+                    cv2.destroyAllWindows()
                     break
 
     def _decode_image(self, img):
