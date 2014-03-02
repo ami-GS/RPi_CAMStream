@@ -4,35 +4,36 @@ from tornado.ioloop import PeriodicCallback, IOLoop
 import tornado
 import tornado.httpserver
 from threading import Thread
-import cv2.cv as cv
-import cv2
 import zlib
 import time
 from imageprocess import ImageProcess
+import sys
 
-
-IMAGE_WIDTH = 60
-IMAGE_HEIGHT = 45
+IMAGE_WIDTH = 240
+IMAGE_HEIGHT = 180
 INTERVAL = 80
+FPS = 30
 
 status = False
 class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
-        self.period = 10
+        self.period = 1
         self.callback = []
+        self.clients = []
         self.clientNum = 0
-
 
     def open(self):
         global status
+        open_ip = self.request.remote_ip
+        self.clients.append(open_ip)
         self.callback = PeriodicCallback(self._send_image, self.period)
 #        self.callback.append(PeriodicCallback(self._send_image, self.period))
 #        self.clientNum += 1
-        status = True
 #        self.callback[self.clientNum].start()
         self.callback.start()
-        print "WebSocket opened"
+        status = True
+        print "WebSocket to", open_ip, "opened"
 
     def _send_image(self):
         frame = self.camera.get_frame()
@@ -46,37 +47,78 @@ class RpiWSHandler(WebSocketHandler):
     def on_close(self):
         global status
 #        self.callback[2-self.clientNum].stop()
+        close_ip = self.request.remote_ip
+        self.clients.remove(close_ip)
         self.callback.stop()
         self.camera.init_frame()
         status = False
-        print "WebSocket closed"
+        print "WebSocket to", close_ip, "closed "
 
 class TakePicture():
-    def __init__(self):
-        self.capture = cv.CaptureFromCAM(-1)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
-        img = cv.QueryFrame(self.capture)
-        self.ImageProcess = ImageProcess(img) #initialize ImageProcess
+    def __init__(self, camType="rpi"):
         self.init_frame()
+        self.camType = camType
+        if camType == "usb":
+            #for USB cam
+            import cv2.cv as cv
+            self.capture = cv.CaptureFromCAM(0)
+            cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
+            cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
+            img = cv.QueryFrame(self.capture)
+            self.ImageProcess = ImageProcess(img) #initialize ImageProcess
+            
+        elif camType == "rpi":
+            #RPi_EXP
+            import picamera
+            import io
+            self.camera = picamera.PiCamera()
+            self.camera.resolution = (IMAGE_WIDTH, IMAGE_HEIGHT)
+            self.camera.framerate = FPS
+            self.camera.led = False
+            #img = self.camera.capture()
+            #self.ImageProcess = ImageProcess(img)
+            time.sleep(2)
+            self.stream = io.BytesIO()
 
+        else:
+            print "type camera type 'rpi' or 'usb'"
+            sys.exit(-1)
+        
     def start(self):
-        self._run()
-
-    def _run(self):
+        def run():
+            if self.camType == "usb":
+                self._run_USBCAM()
+            elif self.camType == "rpi":
+                self._run_RPiCAM()
+       
         while True:
             time.sleep(0.3) #wait until websocket is opened
-            while status:
-                img = cv.QueryFrame(self.capture)
-
-#                img = self.ImageProcess.motionDetect(img)
-
-#                jpgString = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY),90]).tostring()
-                jpgString = cv.EncodeImage(".jpg", img).tostring()
-                self.Frames.append(jpgString)
-                if cv.WaitKey(INTERVAL) == 27:
+            run()
+            
+    def _run_USBCAM(self):
+        while status:
+            img = cv.QueryFrame(self.capture)
+                #img = self.ImageProcess.motionDetect(img)
+            jpgString = cv.EncodeImage(".jpg", img).tostring()
+            self.Frames.append(jpgString)
+            if cv.WaitKey(INTERVAL) == 27:
+                break
+                    
+    def _run_RPiCAM(self):
+        if status:
+                #RPi_CAM experiment
+            for foo in self.camera.capture_continuous(self.stream, "jpeg",
+                                                      use_video_port=True):
+                self.stream.seek(0)
+                frame = self.stream.getvalue()
+                self.Frames.append(frame)
+                self.stream.seek(0)
+                self.stream.truncate()
+                if not status:
+                    self.init_frame()
                     break
-
+                
+                    
     def init_frame(self):
         self.Frames = []
                 
@@ -95,12 +137,17 @@ def wsFunc(camera):
     IOLoop.instance().start()
     
 
-def main():
-    camera = TakePicture()
+def main(camType="rpi"):
+    camera = TakePicture(camType.lower())
     t = Thread(target=wsFunc, args=(camera,))
     t.setDaemon(True)
     t.start()
     camera.start()
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) == 2:
+        main(sys.argv[1])
+    elif len(sys.argv) == 1:
+        main()
+    else:
+        print "Too many arguments"
