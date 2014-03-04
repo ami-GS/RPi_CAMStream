@@ -3,6 +3,7 @@ from tornado.websocket import WebSocketHandler
 from tornado.ioloop import PeriodicCallback, IOLoop
 import tornado
 import tornado.httpserver
+import cv2.cv as cv
 from threading import Thread
 import zlib
 import time
@@ -11,7 +12,7 @@ import sys
 
 IMAGE_WIDTH = 240
 IMAGE_HEIGHT = 180
-INTERVAL = 80
+INTERVAL = 30
 FPS = 30
 
 status = False
@@ -60,8 +61,11 @@ class TakePicture():
         self.camType = camType
         if camType == "usb":
             #for USB cam
-            import cv2.cv as cv
-            self.capture = cv.CaptureFromCAM(0)
+            try:
+                self.capture = cv.CaptureFromCAM(0)
+            except Exception as e:
+                print "Error:",e
+                sys.exit(-1)
             cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
             cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
             img = cv.QueryFrame(self.capture)
@@ -71,15 +75,18 @@ class TakePicture():
             #RPi_EXP
             import picamera
             import io
-            self.camera = picamera.PiCamera()
+            try:
+                self.camera = picamera.PiCamera()
+            except picamera.PiCameraError as e:
+                print e
+                sys.exit(-1)
             self.camera.resolution = (IMAGE_WIDTH, IMAGE_HEIGHT)
             self.camera.framerate = FPS
             self.camera.led = False
-            #img = self.camera.capture()
+            #img = self.camera.capture() #initialize ImageProcess
             #self.ImageProcess = ImageProcess(img)
             time.sleep(2)
             self.stream = io.BytesIO()
-
         else:
             print "type camera type 'rpi' or 'usb'"
             sys.exit(-1)
@@ -144,6 +151,8 @@ def main(camType="rpi"):
     t.start()
     camera.start()
 
+HELP = "Usage: piCamera.py cameraType(rpi or usb)"
+
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         main(sys.argv[1])
@@ -151,3 +160,4 @@ if __name__ == "__main__":
         main()
     else:
         print "Too many arguments"
+        print HELP

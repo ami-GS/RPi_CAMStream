@@ -1,16 +1,17 @@
-import numpy
+import numpy as np
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
 from tornado.ioloop import IOLoop
 import cv2.cv as cv
 import cv2
 from threading import Thread
+import time
 import sys
 import wsaccel
 wsaccel.patch_tornado()
-import time
 
-INTERVAL = 40#100
+
+INTERVAL = 25#100
 
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
@@ -68,7 +69,7 @@ class ShowPicture():
                     break
 
     def _decode_image(self, img):
-        narray = numpy.fromstring(img, dtype="uint8")
+        narray = np.fromstring(img, dtype="uint8")
         decimg = cv2.imdecode(narray, 1)
         return decimg
 
@@ -81,7 +82,6 @@ class ShowPicture():
 def wsFuncCli(host, port, Show):
     ReceiveWebSocket("ws://"+host+":"+port+"/camera",
                      protocols=["http-only", "chat"], Show=Show).wait_until_connect()
-#    IOLoop.instance().start()
 
 
 def main(host="localhost", port="8080"):    
