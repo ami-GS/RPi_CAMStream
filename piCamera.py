@@ -105,7 +105,8 @@ class TakePicture():
     def _run_USBCAM(self):
         while status:
             img = cv.QueryFrame(self.capture)
-                #img = self.ImageProcess.motionDetect(img)
+            img = self.ImageProcess.motionDetect(img)
+#            img = self.ImageProcess.faceDetect(img)
             jpgString = cv.EncodeImage(".jpg", img).tostring()
             self.Frames.append(jpgString)
             if cv.WaitKey(INTERVAL) == 27:

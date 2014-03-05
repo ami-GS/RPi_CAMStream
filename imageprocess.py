@@ -28,3 +28,14 @@ class ImageProcess():
             cv.Rectangle(img, pt1, pt2, cv.CV_RGB(255,255,0), 1)
 
         return img
+
+    def faceDetect(self, img):
+        import cv2
+        import cv2.cv as cv
+        cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
+        rects = cascade.detectMultiScale(img,scaleFactor=1.3,minNeighbors=4,flags=cv.CV_HAAR_SCALE_IMAGE,minSize=(20,20),maxSize=(400,400))
+        rects[:, 2:] += rects[:, :2]
+        for x1, y1, x2, y2 in rects:
+            cv2.rectangle(img, (x1, y1), (x2, y2), (127, 255, 0), 2)
+            
+        return img
