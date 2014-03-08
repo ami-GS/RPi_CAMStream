@@ -16,44 +16,56 @@ INTERVAL = 30
 FPS = 30
 
 status = False
+clients = {} # [ip:WSHandler object]
 class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
         self.period = 1
-        self.callback = []
-        self.clients = []
         self.clientNum = 0
+        self.duplicate = False
 
     def open(self):
+        cli_ip = self.request.remote_ip
+        if cli_ip in clients.keys():
+            print "The IP address (",cli_ip, ") is already connected"
+            self.write_message("EXIT", binary = True)
+            self.duplicate = True
+            return
+
         global status
-        open_ip = self.request.remote_ip
-        self.clients.append(open_ip)
-        self.callback = PeriodicCallback(self._send_image, self.period)
-#        self.callback.append(PeriodicCallback(self._send_image, self.period))
-#        self.clientNum += 1
-#        self.callback[self.clientNum].start()
-        self.callback.start()
         status = True
-        print "WebSocket to", open_ip, "opened"
+        clients[cli_ip] = self
+        self.callback = PeriodicCallback(self._send_image, self.period)
+        self.callback.start()
+        print "WebSocket to", cli_ip, "opened"
 
     def _send_image(self):
-        frame = self.camera.get_frame()
-        if frame:
-            m = zlib.compress(frame)
-            self.write_message(m, binary = True)
+        S_Multiclient(self.camera)
 
     def on_message(self):
         pass
 
     def on_close(self):
+        if self.duplicate:
+            return
+
         global status
-#        self.callback[2-self.clientNum].stop()
-        close_ip = self.request.remote_ip
-        self.clients.remove(close_ip)
+        cli_ip = self.request.remote_ip
+        clients.pop(cli_ip)
         self.callback.stop()
         self.camera.init_frame()
-        status = False
-        print "WebSocket to", close_ip, "closed "
+        if len(clients) == 0:
+            status = False
+        print "WebSocket to", cli_ip, "closed "
+
+#one to many
+def S_Multiclient(camera):
+    frame = camera.get_frame()
+    if frame:
+        m = zlib.compress(frame)
+        for ip in clients:
+            clients[ip].write_message(m, binary = True)
+
 
 class TakePicture():
     def __init__(self, camType="rpi"):
@@ -88,7 +100,7 @@ class TakePicture():
             time.sleep(2)
             self.stream = io.BytesIO()
         else:
-            print "type camera type 'rpi' or 'usb'"
+            print "Input camera type 'rpi' or 'usb'"
             sys.exit(-1)
         
     def start(self):
@@ -105,7 +117,7 @@ class TakePicture():
     def _run_USBCAM(self):
         while status:
             img = cv.QueryFrame(self.capture)
-            img = self.ImageProcess.motionDetect(img)
+#            img = self.ImageProcess.motionDetect(img)
 #            img = self.ImageProcess.faceDetect(img)
             jpgString = cv.EncodeImage(".jpg", img).tostring()
             self.Frames.append(jpgString)

@@ -1,4 +1,5 @@
-import cv
+import cv2
+import cv2.cv as cv
 
 class ImageProcess():
     def __init__(self, img):
@@ -6,6 +7,7 @@ class ImageProcess():
         self.movingAvg = cv.CreateImage(cv.GetSize(img), cv.IPL_DEPTH_32F, 3)
         self.diff = cv.CloneImage(img)
         self.tmp = cv.CloneImage(img)
+        self.cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
 
     def motionDetect(self, img):
         cv.Smooth(img, img, cv.CV_GAUSSIAN, 3, 0)
@@ -30,12 +32,13 @@ class ImageProcess():
         return img
 
     def faceDetect(self, img):
-        import cv2
-        import cv2.cv as cv
-        cascade = cv2.CascadeClassifier("haarcascade_frontalface_alt.xml")
-        rects = cascade.detectMultiScale(img,scaleFactor=1.3,minNeighbors=4,flags=cv.CV_HAAR_SCALE_IMAGE,minSize=(20,20),maxSize=(400,400))
+        print type(img)
+        rects = self.cascade.detectMultiScale(img, 1.3, 4, cv2.cv.CV_HAAR_SCALE_IMAGE)
+#        rects = cascade.detectMultiScale(img,scaleFactor=1.3,minNeighbors=4,flags=cv.CV_HAAR_SCALE_IMAGE,minSize=(20,20),maxSize=(400,400))
+
         rects[:, 2:] += rects[:, :2]
         for x1, y1, x2, y2 in rects:
             cv2.rectangle(img, (x1, y1), (x2, y2), (127, 255, 0), 2)
             
         return img
+

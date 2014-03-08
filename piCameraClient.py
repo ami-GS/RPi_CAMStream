@@ -12,7 +12,7 @@ wsaccel.patch_tornado()
 
 
 INTERVAL = 25#100
-
+status = True
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
                 io_loop=None, ssl_options=None, headers=None):
@@ -29,10 +29,14 @@ class ReceiveWebSocket(TornadoWebSocketClient):
         self.connecting = True
     
     def received_message(self, message):
+        #type(message) = <class 'ws4py.messaging.BinaryMessage'>
         try:
             m = zlib.decompress(str(message))
             self.Show.set_image(m)
         except Exception as e:
+            if str(message) == "EXIT":
+                print "This client IP is already connected"
+                self._exit()
             print e
     
     def closed(self, code, reason=None):
@@ -50,22 +54,29 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             print ".",
         else:
             print "\nConnection timeout"
-            cv2.destroyAllWindows()
-            sys.exit(-1)
+            self._exit()
 
+    def _exit(self):
+        global status
+        status = False
+        cv2.destroyAllWindows()
+        sys.exit(-1)
+    
 class ShowPicture():
     def __init__(self):
         cv2.namedWindow("RPiCAM", 1)
         self.Frames = []
 
     def run(self):
-        while True:
+        global status
+        while status:
             if len(self.Frames):
                 decimg = self._decode_image(self.Frames.pop(0))
                 self._show_image(decimg)
                 if cv.WaitKey(INTERVAL) == 27:
                     IOLoop.instance().stop()
                     cv2.destroyAllWindows()
+                    status = False
                     break
 
     def _decode_image(self, img):
