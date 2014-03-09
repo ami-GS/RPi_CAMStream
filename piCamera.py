@@ -1,5 +1,6 @@
-#To do: adapt multi client
+#To do: adapt tree p2p network
 from tornado.websocket import WebSocketHandler
+from tornado.web import RequestHandler, asynchronous
 from tornado.ioloop import PeriodicCallback, IOLoop
 import tornado
 import tornado.httpserver
@@ -10,17 +11,17 @@ import time
 from imageprocess import ImageProcess
 import sys
 
-IMAGE_WIDTH = 240
-IMAGE_HEIGHT = 180
+IMAGE_WIDTH = 480
+IMAGE_HEIGHT = 360
 INTERVAL = 30
-FPS = 30
+FPS = 7#may be better to rpi camera module
 
 status = False
 clients = {} # [ip:WSHandler object]
 class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
-        self.period = 1
+        self.period = 0.1#may be better to rpi camera module
         self.clientNum = 0
         self.duplicate = False
 
@@ -82,7 +83,8 @@ class TakePicture():
             cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
             img = cv.QueryFrame(self.capture)
             self.ImageProcess = ImageProcess(img) #initialize ImageProcess
-            
+            self.run = self._run_USBCAM
+
         elif camType == "rpi":
             #RPi_EXP
             import picamera
@@ -99,20 +101,15 @@ class TakePicture():
             #self.ImageProcess = ImageProcess(img)
             time.sleep(2)
             self.stream = io.BytesIO()
+            self.run = self._run_RPiCAM
         else:
             print "Input camera type 'rpi' or 'usb'"
             sys.exit(-1)
         
     def start(self):
-        def run():
-            if self.camType == "usb":
-                self._run_USBCAM()
-            elif self.camType == "rpi":
-                self._run_RPiCAM()
-       
         while True:
             time.sleep(0.3) #wait until websocket is opened
-            run()
+            self.run()
             
     def _run_USBCAM(self):
         while status:
@@ -136,8 +133,7 @@ class TakePicture():
                 self.stream.truncate()
                 if not status:
                     self.init_frame()
-                    break
-                
+                    break                
                     
     def init_frame(self):
         self.Frames = []
@@ -148,8 +144,22 @@ class TakePicture():
         else:
             return 0
 
+class AssignIP(RequestHandler):
+    @asynchronous
+    def get(self):
+        import socket
+        if len(clients) == 0:
+            assignHost = socket.gethostbyname(socket.gethostname())
+            print "redirect host", self.request.remote_ip, "to", assignHost
+            self.write(assignHost)
+        else:
+            self.write(clients[1])#?        
+
+        self.finish()
+
 def wsFunc(camera):
     app = tornado.web.Application([
+        (r"/", AssignIP),
         (r"/camera", RpiWSHandler, dict(camera=camera)),
     ])
     http_server = tornado.httpserver.HTTPServer(app)
@@ -164,7 +174,7 @@ def main(camType="rpi"):
     t.start()
     camera.start()
 
-HELP = "Usage: piCamera.py cameraType(rpi or usb)"
+HELP = "Usage: piCamera.py [cameraType(rpi or usb)]"
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:

@@ -2,6 +2,8 @@ import numpy as np
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
 from tornado.ioloop import IOLoop
+import tornado
+from tornado.websocket import WebSocketHandler
 import cv2.cv as cv
 import cv2
 from threading import Thread
@@ -11,7 +13,7 @@ import wsaccel
 wsaccel.patch_tornado()
 
 
-INTERVAL = 25#100
+INTERVAL = 10#100
 status = True
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
@@ -25,7 +27,9 @@ class ReceiveWebSocket(TornadoWebSocketClient):
         self.protocols = protocols
 
     def opened(self):
-        print "\nconnected (press [esc] to exit)"
+        print("\nconnected to " + 
+              self.url[self.url.index("//")+2:self.url.rindex(":")] + 
+              " (press [esc] to exit)")
         self.connecting = True
     
     def received_message(self, message):
@@ -62,6 +66,23 @@ class ReceiveWebSocket(TornadoWebSocketClient):
         cv2.destroyAllWindows()
         sys.exit(-1)
     
+class WSHandler(WebSocketHandler):
+    def initialize(self):
+        pass
+
+    def open(self):
+        pass
+
+    def _send_image(self):
+        pass
+
+    def on_message(self):
+        pass
+
+    def on_close(self):
+        pass
+
+
 class ShowPicture():
     def __init__(self):
         cv2.namedWindow("RPiCAM", 1)
@@ -90,14 +111,28 @@ class ShowPicture():
     def set_image(self, img):
         self.Frames.append(img)
 
-def wsFuncCli(host, port, Show):
+def connectWS(host, port, Show):
     ReceiveWebSocket("ws://"+host+":"+port+"/camera",
                      protocols=["http-only", "chat"], Show=Show).wait_until_connect()
 
 
-def main(host="localhost", port="8080"):    
+def getTreeP2PHost(host, port):
+    request = tornado.httpclient.HTTPRequest(url="http://"+host+":"+port+"/", method="GET")
+    client = tornado.httpclient.HTTPClient()
+    try:
+        response = client.fetch(request)
+        if response.body:
+            host = response.body
+    except Exception as e:
+        print e
+
+    return host
+
+
+def main(host="localhost", port="8080"):
+#    host = getTreeP2PHost(host, port)
     Show = ShowPicture()
-    t = Thread(target=wsFuncCli, args=(host, port, Show,))
+    t = Thread(target=connectWS, args=(host, port, Show,))
     t.setDaemon(True)
     t.start()
     Show.run()
