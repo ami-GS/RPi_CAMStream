@@ -2,7 +2,7 @@ import numpy as np
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
 from tornado.ioloop import IOLoop
-import tornado
+import tornado, tornado.web, tornado.httpserver
 from tornado.websocket import WebSocketHandler
 import cv2.cv as cv
 import cv2
@@ -11,7 +11,8 @@ import time
 import sys
 import wsaccel
 wsaccel.patch_tornado()
-
+import json
+from imageprocess import ImageProcess
 
 INTERVAL = 10#100
 status = True
@@ -32,21 +33,42 @@ class ReceiveWebSocket(TornadoWebSocketClient):
               " (press [esc] to exit)")
         self.connecting = True
     
-    def received_message(self, message):
+    def received_message(self, m):
         #type(message) = <class 'ws4py.messaging.BinaryMessage'>
         try:
-            m = zlib.decompress(str(message))
+            m = zlib.decompress(str(m))
             self.Show.set_image(m)
         except Exception as e:
-            if str(message) == "EXIT":
-                print "This client IP is already connected"
-                self._exit()
-            print e
-    
-    def closed(self, code, reason=None):
-        IOLoop.instance().stop()
+            m = json.loads(str(m))
+            if m[0] == "EXIT":
+                print "This client IP is already connecting"
+                self.closed()
 
-    def wait_until_connect(self):
+#============For tree p2p================
+#
+#            self._p2p_proto(m)
+#            
+#============================= 
+    
+    def _p2p_proto(m):
+        openPort = m[3]
+        if m[0] == "REDIRECT":
+            host, port= m[1], m[2]
+            print "Redirected to "+host+":"+port
+            ReceiveWebSocket("ws://"+host+":"+port+"/camera",
+                             protocols=["http-only", "chat"], Show=self.Show).wait_until_connect("leaf")
+        elif m[0] == "KEEP":
+            print "keep"
+        t = Thread(target=startWSServer, args=(openPort,))
+        t.sart()        
+
+
+    def closed(self, code, reason=None):
+        IOLoop.instance().stop()        
+        self._exit()
+
+    def wait_until_connect(self, node="root"):
+
         print "Now connecting",
         trial = 0
         while not self.connecting and trial < 20:
@@ -68,10 +90,11 @@ class ReceiveWebSocket(TornadoWebSocketClient):
     
 class WSHandler(WebSocketHandler):
     def initialize(self):
-        pass
+        print "initialized"
+        self.period = 0.1
 
     def open(self):
-        pass
+        print "redirect!"
 
     def _send_image(self):
         pass
@@ -95,9 +118,7 @@ class ShowPicture():
                 decimg = self._decode_image(self.Frames.pop(0))
                 self._show_image(decimg)
                 if cv.WaitKey(INTERVAL) == 27:
-                    IOLoop.instance().stop()
-                    cv2.destroyAllWindows()
-                    status = False
+                    self._finish()
                     break
 
     def _decode_image(self, img):
@@ -111,9 +132,15 @@ class ShowPicture():
     def set_image(self, img):
         self.Frames.append(img)
 
+    def _finish(self):
+        IOLoop.instance().stop()
+        cv2.destroyAllWindows()
+        status = False
+
+
 def connectWS(host, port, Show):
     ReceiveWebSocket("ws://"+host+":"+port+"/camera",
-                     protocols=["http-only", "chat"], Show=Show).wait_until_connect()
+                     protocols=["http-only", "chat"], Show=Show).wait_until_connect("root")
 
 
 def getTreeP2PHost(host, port):
@@ -128,13 +155,22 @@ def getTreeP2PHost(host, port):
 
     return host
 
+def startWSServer(port):
+    app = tornado.web.Application([
+        (r"/camera", WSHandler),
+    ])
+    http_server = tornado.httpserver.HTTPServer(app)
+    http_server.listen(port)
+#    IOLoop.instance().start()
+#    should I use different IOLoop instance?????
 
 def main(host="localhost", port="8080"):
+    def initThread(thread):
+        thread.setDaemon(True)
+        return thread
 #    host = getTreeP2PHost(host, port)
     Show = ShowPicture()
-    t = Thread(target=connectWS, args=(host, port, Show,))
-    t.setDaemon(True)
-    t.start()
+    initThread(Thread(target=connectWS, args=(host, port, Show,))).start()
     Show.run()
             
 

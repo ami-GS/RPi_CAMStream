@@ -10,6 +10,7 @@ import zlib
 import time
 from imageprocess import ImageProcess
 import sys
+import json
 
 IMAGE_WIDTH = 480
 IMAGE_HEIGHT = 360
@@ -29,18 +30,37 @@ class RpiWSHandler(WebSocketHandler):
         cli_ip = self.request.remote_ip
         if cli_ip in clients.keys():
             print "The IP address (",cli_ip, ") is already connected"
-            self.write_message("EXIT", binary = True)
+            self.write_message(json.dumps(["EXIT"]), binary = True)
             self.duplicate = True
             return
 
         global status
         status = True
         clients[cli_ip] = self
+        
+        #For tree p2p
+        #self._p2p_proto()
+
         self.callback = PeriodicCallback(self._send_image, self.period)
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
+    def _p2p_proto():
+        #==============For tree p2p=================#redirect to ip & port
+        port = len(clients)+8080
+        if len(clients) > 1:
+            clients[cli_ip] = ["REDIRECT", cli_ip, str(port), str(port+1)]
+        else:
+            clients[cli_ip] = ["KEEP", cli_ip, str(port), str(port+1)]
+        message = json.dumps(clients[cli_ip])
+        self.write_message(message, binary = True)
+        #===============================
+
     def _send_image(self):
+#        frame = self.camera.get_frame()
+#        if frame:
+#            m = zlib.compress(frame)
+#            self.write_message(m)
         S_Multiclient(self.camera)
 
     def on_message(self):
@@ -102,6 +122,7 @@ class TakePicture():
             time.sleep(2)
             self.stream = io.BytesIO()
             self.run = self._run_RPiCAM
+            print "Complete initialization"
         else:
             print "Input camera type 'rpi' or 'usb'"
             sys.exit(-1)
@@ -157,7 +178,7 @@ class AssignIP(RequestHandler):
 
         self.finish()
 
-def wsFunc(camera):
+def startWSServer(camera):
     app = tornado.web.Application([
         (r"/", AssignIP),
         (r"/camera", RpiWSHandler, dict(camera=camera)),
@@ -169,7 +190,7 @@ def wsFunc(camera):
 
 def main(camType="rpi"):
     camera = TakePicture(camType.lower())
-    t = Thread(target=wsFunc, args=(camera,))
+    t = Thread(target=startWSServer, args=(camera,))
     t.setDaemon(True)
     t.start()
     camera.start()
