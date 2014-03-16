@@ -46,11 +46,11 @@ class ReceiveWebSocket(TornadoWebSocketClient):
 
 #============For tree p2p================
 #
-#            self._p2p_proto(m)
+            self._p2p_proto(m)
 #            
 #============================= 
     
-    def _p2p_proto(m):
+    def _p2p_proto(self, m):
         openPort = m[3]
         if m[0] == "REDIRECT":
             host, port= m[1], m[2]
@@ -59,9 +59,8 @@ class ReceiveWebSocket(TornadoWebSocketClient):
                              protocols=["http-only", "chat"], Show=self.Show).wait_until_connect("leaf")
         elif m[0] == "KEEP":
             print "keep"
-        t = Thread(target=startWSServer, args=(openPort,))
-        t.sart()        
-
+        t = Thread(target=startWSServer, args=(str(openPort),))
+        t.start()
 
     def closed(self, code, reason=None):
         IOLoop.instance().stop()        
@@ -133,6 +132,7 @@ class ShowPicture():
         self.Frames.append(img)
 
     def _finish(self):
+        global status
         IOLoop.instance().stop()
         cv2.destroyAllWindows()
         status = False
@@ -161,6 +161,7 @@ def startWSServer(port):
     ])
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(port)
+    print "start server"
 #    IOLoop.instance().start()
 #    should I use different IOLoop instance?????
 

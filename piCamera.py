@@ -14,7 +14,7 @@ import json
 
 IMAGE_WIDTH = 480
 IMAGE_HEIGHT = 360
-INTERVAL = 30
+INTERVAL = 10
 FPS = 7#may be better to rpi camera module
 
 status = False
@@ -38,14 +38,14 @@ class RpiWSHandler(WebSocketHandler):
         status = True
         clients[cli_ip] = self
         
-        #For tree p2p
-        #self._p2p_proto()
-
+#=======For tree p2p==========
+        self._p2p_proto(cli_ip)
+#==============================
         self.callback = PeriodicCallback(self._send_image, self.period)
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
-    def _p2p_proto():
+    def _p2p_proto(self,cli_ip):
         #==============For tree p2p=================#redirect to ip & port
         port = len(clients)+8080
         if len(clients) > 1:
@@ -54,14 +54,12 @@ class RpiWSHandler(WebSocketHandler):
             clients[cli_ip] = ["KEEP", cli_ip, str(port), str(port+1)]
         message = json.dumps(clients[cli_ip])
         self.write_message(message, binary = True)
+        
         #===============================
 
     def _send_image(self):
-#        frame = self.camera.get_frame()
-#        if frame:
-#            m = zlib.compress(frame)
-#            self.write_message(m)
-        S_Multiclient(self.camera)
+        self._S_Oneclient()
+        #self._S_Multiclient()
 
     def on_message(self):
         pass
@@ -79,13 +77,20 @@ class RpiWSHandler(WebSocketHandler):
             status = False
         print "WebSocket to", cli_ip, "closed "
 
-#one to many
-def S_Multiclient(camera):
-    frame = camera.get_frame()
-    if frame:
-        m = zlib.compress(frame)
-        for ip in clients:
-            clients[ip].write_message(m, binary = True)
+    def _S_Oneclient(self):
+        frame = self.camera.get_frame()
+        if frame:
+            m = zlib.compress(frame)
+            self.write_message(m, binary = True)
+
+    #one to many
+    def _S_Multiclient(self):
+        frame = self.camera.get_frame()
+        if frame:
+            m = zlib.compress(frame)
+            for ip in clients:
+                clients[ip].write_message(m, binary = True)
+
 
 
 class TakePicture():
@@ -132,6 +137,8 @@ class TakePicture():
             time.sleep(0.3) #wait until websocket is opened
             self.run()
             
+        
+
     def _run_USBCAM(self):
         while status:
             img = cv.QueryFrame(self.capture)
