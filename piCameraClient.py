@@ -1,7 +1,6 @@
-import numpy as np
 from ws4py.client.tornadoclient import TornadoWebSocketClient
 import zlib
-from tornado.ioloop import IOLoop
+from tornado.ioloop import IOLoop, PeriodicCallback
 import tornado, tornado.web, tornado.httpserver
 from tornado.websocket import WebSocketHandler
 import cv2.cv as cv
@@ -58,16 +57,15 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             ReceiveWebSocket("ws://"+host+":"+port+"/camera",
                              protocols=["http-only", "chat"], Show=self.Show).wait_until_connect("leaf")
         elif m[0] == "KEEP":
-            print "keep"
-        t = Thread(target=startWSServer, args=(str(openPort),))
+            print "Keep connection"
+        t = Thread(target=startWSServer, args=(str(openPort), self.Show),)
+        t.setDaemon(True)
         t.start()
-
+        
     def closed(self, code, reason=None):
-        IOLoop.instance().stop()        
-        self._exit()
+        self.Show._finish()
 
     def wait_until_connect(self, node="root"):
-
         print "Now connecting",
         trial = 0
         while not self.connecting and trial < 20:
@@ -81,21 +79,25 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             print "\nConnection timeout"
             self._exit()
 
-    def _exit(self):
-        global status
-        status = False
-        cv2.destroyAllWindows()
-        sys.exit(-1)
     
 class WSHandler(WebSocketHandler):
-    def initialize(self):
-        print "initialized"
+    def initialize(self, Show):
+        self.Show = Show
         self.period = 0.1
+        self.leafClient = False
 
     def open(self):
-        print "redirect!"
-
+        #self.callback = PeriodicCallback(self._send_image, self.period)
+        #self.callback.start()
+        print self.request.remote_ip, "connected here"
+        self.leafClient = True
+        while self.leafClient:
+            self._send_image()
+        
     def _send_image(self):
+#        frame = self.Frames[0]
+#        m = zlib.compress(frame)
+#        self.write_message(m, binary=True)
         pass
 
     def on_message(self):
@@ -107,11 +109,12 @@ class WSHandler(WebSocketHandler):
 
 class ShowPicture():
     def __init__(self):
+        import numpy as np
+        self.np = np
         cv2.namedWindow("RPiCAM", 1)
         self.Frames = []
 
     def run(self):
-        global status
         while status:
             if len(self.Frames):
                 decimg = self._decode_image(self.Frames.pop(0))
@@ -121,7 +124,7 @@ class ShowPicture():
                     break
 
     def _decode_image(self, img):
-        narray = np.fromstring(img, dtype="uint8")
+        narray = self.np.fromstring(img, dtype="uint8")
         decimg = cv2.imdecode(narray, 1)
         return decimg
 
@@ -133,9 +136,9 @@ class ShowPicture():
 
     def _finish(self):
         global status
+        status = False
         IOLoop.instance().stop()
         cv2.destroyAllWindows()
-        status = False
 
 
 def connectWS(host, port, Show):
@@ -155,14 +158,15 @@ def getTreeP2PHost(host, port):
 
     return host
 
-def startWSServer(port):
+def startWSServer(port, Show):
     app = tornado.web.Application([
-        (r"/camera", WSHandler),
+        (r"/camera", WSHandler, dict(Show=Show)),
     ])
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(port)
     print "start server"
-#    IOLoop.instance().start()
+    #IOLoop.instance().start()
+    #print e
 #    should I use different IOLoop instance?????
 
 def main(host="localhost", port="8080"):
@@ -174,7 +178,6 @@ def main(host="localhost", port="8080"):
     initThread(Thread(target=connectWS, args=(host, port, Show,))).start()
     Show.run()
             
-
 HELP = "Usage : piCameraClient.py [host] [port]"
 
 if __name__ == "__main__":

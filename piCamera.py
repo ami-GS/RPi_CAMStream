@@ -9,8 +9,8 @@ from threading import Thread
 import zlib
 import time
 from imageprocess import ImageProcess
-import sys
 import json
+import sys
 
 IMAGE_WIDTH = 480
 IMAGE_HEIGHT = 360
@@ -23,7 +23,6 @@ class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
         self.period = 0.1#may be better to rpi camera module
-        self.clientNum = 0
         self.duplicate = False
 
     def open(self):
@@ -45,17 +44,16 @@ class RpiWSHandler(WebSocketHandler):
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
+#==============For tree p2p=================#redirect to ip & port
     def _p2p_proto(self,cli_ip):
-        #==============For tree p2p=================#redirect to ip & port
         port = len(clients)+8080
         if len(clients) > 1:
             clients[cli_ip] = ["REDIRECT", cli_ip, str(port), str(port+1)]
         else:
             clients[cli_ip] = ["KEEP", cli_ip, str(port), str(port+1)]
         message = json.dumps(clients[cli_ip])
-        self.write_message(message, binary = True)
-        
-        #===============================
+        self.write_message(message, binary = True)        
+#===============================
 
     def _send_image(self):
         self._S_Oneclient()
@@ -68,12 +66,12 @@ class RpiWSHandler(WebSocketHandler):
         if self.duplicate:
             return
 
-        global status
         cli_ip = self.request.remote_ip
         clients.pop(cli_ip)
         self.callback.stop()
         self.camera.init_frame()
         if len(clients) == 0:
+            global status
             status = False
         print "WebSocket to", cli_ip, "closed "
 
@@ -92,52 +90,46 @@ class RpiWSHandler(WebSocketHandler):
                 clients[ip].write_message(m, binary = True)
 
 
-
 class TakePicture():
-    def __init__(self, camType="rpi"):
+    def __init__(self, camType):
         self.init_frame()
         self.camType = camType
+        self._cameraInitialize(camType)
+        print "Complete initialization"
+
+    def _cameraInitialize(self, camType):
         if camType == "usb":
-            #for USB cam
             try:
                 self.capture = cv.CaptureFromCAM(0)
+                cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
+                cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
+                img = cv.QueryFrame(self.capture)
+                self.ImageProcess = ImageProcess(img) #initialize ImageProcess
+                self.run = self._run_USBCAM
             except Exception as e:
-                print "Error:",e
+                print "Error:", e
                 sys.exit(-1)
-            cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, IMAGE_WIDTH)
-            cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
-            img = cv.QueryFrame(self.capture)
-            self.ImageProcess = ImageProcess(img) #initialize ImageProcess
-            self.run = self._run_USBCAM
-
         elif camType == "rpi":
-            #RPi_EXP
             import picamera
             import io
             try:
                 self.camera = picamera.PiCamera()
+                self.camera.resolution = (IMAGE_WIDTH, IMAGE_HEIGHT)
+                self.camera.framerate = FPS
+                self.camera.led = False
+                #img = self.camera.capture() #initialize ImageProcess
+                #self.ImageProcess = ImageProcess(img)
+                time.sleep(2)
+                self.stream = io.BytesIO()
+                self.run = self._run_RPiCAM
             except picamera.PiCameraError as e:
                 print e
                 sys.exit(-1)
-            self.camera.resolution = (IMAGE_WIDTH, IMAGE_HEIGHT)
-            self.camera.framerate = FPS
-            self.camera.led = False
-            #img = self.camera.capture() #initialize ImageProcess
-            #self.ImageProcess = ImageProcess(img)
-            time.sleep(2)
-            self.stream = io.BytesIO()
-            self.run = self._run_RPiCAM
-            print "Complete initialization"
-        else:
-            print "Input camera type 'rpi' or 'usb'"
-            sys.exit(-1)
-        
+
     def start(self):
         while True:
             time.sleep(0.3) #wait until websocket is opened
             self.run()
-            
-        
 
     def _run_USBCAM(self):
         while status:
@@ -195,7 +187,7 @@ def startWSServer(camera):
     IOLoop.instance().start()
     
 
-def main(camType="rpi"):
+def main(camType="usb"):
     camera = TakePicture(camType.lower())
     t = Thread(target=startWSServer, args=(camera,))
     t.setDaemon(True)
