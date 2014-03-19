@@ -46,7 +46,7 @@ class RpiWSHandler(WebSocketHandler):
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
-        #==============For tree p2p=================#redirect to ip & port
+    #==============For tree p2p=================#redirect to ip & port
     def _p2p_proto(self,cli_ip):
         port = len(clients)+8080
         if len(clients) > 1:
@@ -55,16 +55,17 @@ class RpiWSHandler(WebSocketHandler):
             clients[cli_ip] = ["KEEP", cli_ip, str(port), str(port+1)]
         message = json.dumps(clients[cli_ip])
         self.write_message(message, binary = True)
-        if clients[cli_ip][0] == "REDIRECT":
-            self.on_close()
-        #===============================
+    #===============================
     
     def loop(self):
         def _send_image(image):
             m = zlib.compress(image)
             self.write_message(m, binary = True)
-        image = self.camera.takeFrame()
-        _send_image(image)
+        if status:
+            image = self.camera.takeFrame()
+            _send_image(image)
+        else:
+            self.on_close()
 
     def _send_image(self):
         self._S_Oneclient()
