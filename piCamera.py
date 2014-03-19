@@ -22,6 +22,7 @@ clients = {} # [ip:WSHandler object]
 class RpiWSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
+        self.camType = camera.camType
         self.period = 0.1#may be better to rpi camera module
         self.duplicate = False
 
@@ -36,15 +37,16 @@ class RpiWSHandler(WebSocketHandler):
         global status
         status = True
         clients[cli_ip] = self
+        #self.callback = PeriodicCallback(self._send_image, self.period)
+        self.callback = PeriodicCallback(self.loop, self.period)
         
-#=======For tree p2p==========
+        #=======For tree p2p==========
         self._p2p_proto(cli_ip)
-#==============================
-        self.callback = PeriodicCallback(self._send_image, self.period)
+        #==============================
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
-#==============For tree p2p=================#redirect to ip & port
+        #==============For tree p2p=================#redirect to ip & port
     def _p2p_proto(self,cli_ip):
         port = len(clients)+8080
         if len(clients) > 1:
@@ -52,12 +54,20 @@ class RpiWSHandler(WebSocketHandler):
         else:
             clients[cli_ip] = ["KEEP", cli_ip, str(port), str(port+1)]
         message = json.dumps(clients[cli_ip])
-        self.write_message(message, binary = True)        
-#===============================
+        self.write_message(message, binary = True)
+        if clients[cli_ip][0] == "REDIRECT":
+            self.on_close()
+        #===============================
+    
+    def loop(self):
+        def _send_image(image):
+            m = zlib.compress(image)
+            self.write_message(m, binary = True)
+        image = self.camera.takeFrame()
+        _send_image(image)
 
     def _send_image(self):
         self._S_Oneclient()
-        #self._S_Multiclient()
 
     def on_message(self):
         pass
@@ -81,14 +91,6 @@ class RpiWSHandler(WebSocketHandler):
             m = zlib.compress(frame)
             self.write_message(m, binary = True)
 
-    #one to many
-    def _S_Multiclient(self):
-        frame = self.camera.get_frame()
-        if frame:
-            m = zlib.compress(frame)
-            for ip in clients:
-                clients[ip].write_message(m, binary = True)
-
 
 class TakePicture():
     def __init__(self, camType):
@@ -106,6 +108,7 @@ class TakePicture():
                 img = cv.QueryFrame(self.capture)
                 self.ImageProcess = ImageProcess(img) #initialize ImageProcess
                 self.run = self._run_USBCAM
+                self.takeFrame = self._takeFrameUSB
             except Exception as e:
                 print "Error:", e
                 sys.exit(-1)
@@ -122,9 +125,11 @@ class TakePicture():
                 time.sleep(2)
                 self.stream = io.BytesIO()
                 self.run = self._run_RPiCAM
+                self.takeFrame = self._takeFrameRPi
             except picamera.PiCameraError as e:
                 print e
                 sys.exit(-1)
+
 
     def start(self):
         while True:
@@ -134,16 +139,15 @@ class TakePicture():
     def _run_USBCAM(self):
         while status:
             img = cv.QueryFrame(self.capture)
-#            img = self.ImageProcess.motionDetect(img)
-#            img = self.ImageProcess.faceDetect(img)
+            #img = self.ImageProcess.motionDetect(img)
             jpgString = cv.EncodeImage(".jpg", img).tostring()
             self.Frames.append(jpgString)
             if cv.WaitKey(INTERVAL) == 27:
                 break
-                    
+
     def _run_RPiCAM(self):
         if status:
-                #RPi_CAM experiment
+            #RPi_CAM experiment
             for foo in self.camera.capture_continuous(self.stream, "jpeg",
                                                       use_video_port=True):
                 self.stream.seek(0)
@@ -154,7 +158,26 @@ class TakePicture():
                 if not status:
                     self.init_frame()
                     break                
-                    
+
+    def run(self):
+        pass
+
+    def _takeFrameUSB(self):
+        frame = cv.QueryFrame(self.capture)
+        jpgString = cv.EncodeImage(".jpg", frame).tostring()
+        return jpgString
+
+    def _takeFrameRPi(self, wsHandler):
+        self.camera.capture(self.stream, "jpeg")
+        self.stream.seek(0)
+        frame = self.stream.getvalue()
+        self.stream.seel(0)
+        self.stream.truncate()
+        return frame
+
+    def takeFrame(self):
+        pass
+
     def init_frame(self):
         self.Frames = []
                 
@@ -189,10 +212,7 @@ def startWSServer(camera):
 
 def main(camType="usb"):
     camera = TakePicture(camType.lower())
-    t = Thread(target=startWSServer, args=(camera,))
-    t.setDaemon(True)
-    t.start()
-    camera.start()
+    startWSServer(camera)
 
 HELP = "Usage: piCamera.py [cameraType(rpi or usb)]"
 
