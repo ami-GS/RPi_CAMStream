@@ -38,11 +38,11 @@ class RpiWSHandler(WebSocketHandler):
         status = True
         clients[cli_ip] = self
         #self.callback = PeriodicCallback(self._send_image, self.period)
-        self.callback = PeriodicCallback(self.loop, self.period)
         
         #=======For tree p2p==========
         self._p2p_proto(cli_ip)
         #==============================
+        self.callback = PeriodicCallback(self.loop, self.period)
         self.callback.start()
         print "WebSocket to", cli_ip, "opened"
 
@@ -108,7 +108,6 @@ class TakePicture():
                 cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, IMAGE_HEIGHT)
                 img = cv.QueryFrame(self.capture)
                 self.ImageProcess = ImageProcess(img) #initialize ImageProcess
-                self.run = self._run_USBCAM
                 self.takeFrame = self._takeFrameUSB
             except Exception as e:
                 print "Error:", e
@@ -125,7 +124,6 @@ class TakePicture():
                 #self.ImageProcess = ImageProcess(img)
                 time.sleep(2)
                 self.stream = io.BytesIO()
-                self.run = self._run_RPiCAM
                 self.takeFrame = self._takeFrameRPi
             except picamera.PiCameraError as e:
                 print e
@@ -137,31 +135,6 @@ class TakePicture():
             time.sleep(0.3) #wait until websocket is opened
             self.run()
 
-    def _run_USBCAM(self):
-        while status:
-            img = cv.QueryFrame(self.capture)
-            #img = self.ImageProcess.motionDetect(img)
-            jpgString = cv.EncodeImage(".jpg", img).tostring()
-            self.Frames.append(jpgString)
-            if cv.WaitKey(INTERVAL) == 27:
-                break
-
-    def _run_RPiCAM(self):
-        if status:
-            #RPi_CAM experiment
-            for foo in self.camera.capture_continuous(self.stream, "jpeg",
-                                                      use_video_port=True):
-                self.stream.seek(0)
-                frame = self.stream.getvalue()
-                self.Frames.append(frame)
-                self.stream.seek(0)
-                self.stream.truncate()
-                if not status:
-                    self.init_frame()
-                    break                
-
-    def run(self):
-        pass
 
     def _takeFrameUSB(self):
         frame = cv.QueryFrame(self.capture)
@@ -179,9 +152,6 @@ class TakePicture():
     def takeFrame(self):
         pass
 
-    def init_frame(self):
-        self.Frames = []
-                
     def get_frame(self):
         if len(self.Frames):
             return self.Frames.pop(0)

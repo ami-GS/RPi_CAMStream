@@ -15,6 +15,7 @@ from imageprocess import ImageProcess
 
 INTERVAL = 10#100
 status = True
+FRAME = ""
 class ReceiveWebSocket(TornadoWebSocketClient):
     def __init__(self, url, protocols=None, Show=None, extensions=None,
                 io_loop=None, ssl_options=None, headers=None):
@@ -27,83 +28,87 @@ class ReceiveWebSocket(TornadoWebSocketClient):
         self.protocols = protocols
 
     def opened(self):
-        print("\nconnected to " + 
-              self.url[self.url.index("//")+2:self.url.rindex(":")] + 
-              " (press [esc] to exit)")
+        print("connected to root server")
         self.connecting = True
-    
+
     def received_message(self, m):
-        #type(message) = <class 'ws4py.messaging.BinaryMessage'>
         try:
+            global FRAME
+            FRAME = str(m)
             m = zlib.decompress(str(m))
-            self.Show.set_image(m)
+            self.loop(m)
         except Exception as e:
             m = json.loads(str(m))
             if m[0] == "EXIT":
                 print "This client IP is already connecting"
                 self.closed()
-
-#============For tree p2p================
-#
+            #============For tree p2p================
+            #
             self._p2p_proto(m)
-#            
-#============================= 
+            #
+            #=============================
     
     def _p2p_proto(self, m):
         openPort = m[3]
-        if m[0] == "REDIRECT":
-            host, port= m[1], m[2]
-            print "Redirected to "+host+":"+port
-            ReceiveWebSocket("ws://"+host+":"+port+"/camera",
-                             protocols=["http-only", "chat"], Show=self.Show).wait_until_connect("leaf")
-        elif m[0] == "KEEP":
-            print "Keep connection"
         t = Thread(target=startWSServer, args=(str(openPort), self.Show),)
         t.setDaemon(True)
         t.start()
-        
-    def closed(self, code, reason=None):
-        self.Show._finish()
 
-    def wait_until_connect(self, node="root"):
-        print "Now connecting",
-        trial = 0
-        while not self.connecting and trial < 20:
-            time.sleep(0.5)
-            ws = ReceiveWebSocket(self.url, protocols=self.protocols, Show=self.Show)
-            ws.connect()
-            IOLoop.instance().start()
-            trial += 1
-            print ".",
-        else:
-            print "\nConnection timeout"
-            self._exit()
+        if m[0] == "REDIRECT":
+            host, port= m[1], m[2]
+            print "Redirected to "+host+":"+port
+            #IOLoop.instance().stop()
+            con(host, port, self.Show)
+        elif m[0] == "KEEP":
+            print "Keep connection"
+
+        
+    def loop(self, img):
+        if cv.WaitKey(10) == 27:
+            self.Show._finish()
+        decimg = self.Show._decode_image(img)
+        self.Show._show_image(decimg)
+
+    def closed(self, code, reason=None):
+        print "connection closed by:", reason
+        self.Show._finish()
 
     
 class WSHandler(WebSocketHandler):
-    def initialize(self, Show):
+    def initialize(self, Show, ioloop):
         self.Show = Show
         self.period = 0.1
         self.leafClient = False
+        self.ioloop = ioloop
+        import threading
+        t = Thread(target=self.ioloop.start)
+        t.setDaemon(True)
+        t.start()
+        print threading.active_count()
 
     def open(self):
         #self.callback = PeriodicCallback(self._send_image, self.period)
         #self.callback.start()
         print self.request.remote_ip, "connected here"
-        self.leafClient = True
-        while self.leafClient:
-            self._send_image()
-        
+        self.haveLeafClient = True
+        t = Thread(target=self._send_image)
+        t.setDaemon(True)
+        t.start()
+
     def _send_image(self):
-#        frame = self.Frames[0]
+        while True:
+            self.write_message(FRAME, binary=True)
+        #        frame = self.Frames[0]
 #        m = zlib.compress(frame)
-#        self.write_message(m, binary=True)
-        pass
+        #self.write_message("aiueo", binary=True)
+
 
     def on_message(self):
         pass
 
     def on_close(self):
+        print self.request.remote_ip, "connection closed from here"
+        print self._reason
         pass
 
 
@@ -129,7 +134,7 @@ class ShowPicture():
         return decimg
 
     def _show_image(self, img):
-        cv2.imshow('RPiCAM', img) 
+        cv2.imshow('RPiCAM', img)
 
     def set_image(self, img):
         self.Frames.append(img)
@@ -139,11 +144,6 @@ class ShowPicture():
         status = False
         IOLoop.instance().stop()
         cv2.destroyAllWindows()
-
-
-def connectWS(host, port, Show):
-    ReceiveWebSocket("ws://"+host+":"+port+"/camera",
-                     protocols=["http-only", "chat"], Show=Show).wait_until_connect("root")
 
 
 def getTreeP2PHost(host, port):
@@ -159,25 +159,41 @@ def getTreeP2PHost(host, port):
     return host
 
 def startWSServer(port, Show):
+    ioloop = IOLoop.current()
     app = tornado.web.Application([
-        (r"/camera", WSHandler, dict(Show=Show)),
+        (r"/camera", WSHandler, dict(Show=Show, ioloop=ioloop)),
     ])
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(port)
     print "start server"
-    #IOLoop.instance().start()
-    #print e
-#    should I use different IOLoop instance?????
+
+
+def con(host, port, Show):
+    trial = 0
+    ws = ReceiveWebSocket("ws://"+host+":"+port+"/camera",
+                          protocols=["http-only", "chat"], Show=Show)
+    while (not ws.connecting) and trial < 20:
+        print trial ,
+        trial += 1
+        time.sleep(0.5)
+        ws = ReceiveWebSocket("ws://"+host+":"+port+"/camera",
+                     protocols=["http-only", "chat"], Show=Show)
+        ws.connect()
+        IOLoop.current().start()
+
+    if trial >= 20:
+        print "Connection timeout"
+    elif ws.connecting:
+        pass
 
 def main(host="localhost", port="8080"):
     def initThread(thread):
         thread.setDaemon(True)
         return thread
-#    host = getTreeP2PHost(host, port)
+    #host = getTreeP2PHost(host, port)
     Show = ShowPicture()
-    initThread(Thread(target=connectWS, args=(host, port, Show,))).start()
-    Show.run()
-            
+    con(host, port, Show)
+
 HELP = "Usage : piCameraClient.py [host] [port]"
 
 if __name__ == "__main__":
