@@ -80,7 +80,7 @@ class RpiWSHandler(WebSocketHandler):
         cli_ip = self.request.remote_ip
         clients.pop(cli_ip)
         self.callback.stop()
-        self.camera.init_frame()
+        #self.camera.init_frame()
         if len(clients) == 0:
             global status
             status = False
@@ -95,7 +95,7 @@ class RpiWSHandler(WebSocketHandler):
 
 class TakePicture():
     def __init__(self, camType):
-        self.init_frame()
+        #self.init_frame()
         self.camType = camType
         self._cameraInitialize(camType)
         print "Complete initialization"
@@ -179,7 +179,6 @@ def startWSServer(camera):
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(8080)
     IOLoop.instance().start()
-    
 
 def main(camType="usb"):
     camera = TakePicture(camType.lower())
