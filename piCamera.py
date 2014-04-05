@@ -58,7 +58,7 @@ class RpiWSHandler(WebSocketHandler):
     #===============================
     
     def loop(self):
-        def _send_image(image):
+        def _send_image(m):
             m = zlib.compress(image)
             self.write_message(m, binary = True)
         if status:
@@ -67,8 +67,8 @@ class RpiWSHandler(WebSocketHandler):
         else:
             self.on_close()
 
-    def _send_image(self):
-        self._S_Oneclient()
+    #def _send_image(self):
+    #    self._S_Oneclient()
 
     def on_message(self):
         pass
@@ -86,11 +86,11 @@ class RpiWSHandler(WebSocketHandler):
             status = False
         print "WebSocket to", cli_ip, "closed "
 
-    def _S_Oneclient(self):
-        frame = self.camera.get_frame()
-        if frame:
-            m = zlib.compress(frame)
-            self.write_message(m, binary = True)
+    #def _S_Oneclient(self):
+    #    frame = self.camera.get_frame()
+    #    if frame:
+    #        m = zlib.compress(frame)
+    #        self.write_message(m, binary = True)
 
 
 class TakePicture():
@@ -141,22 +141,22 @@ class TakePicture():
         jpgString = cv.EncodeImage(".jpg", frame).tostring()
         return jpgString
 
-    def _takeFrameRPi(self, wsHandler):
+    def _takeFrameRPi(self):
         self.camera.capture(self.stream, "jpeg")
         self.stream.seek(0)
         frame = self.stream.getvalue()
-        self.stream.seel(0)
+        self.stream.seek(0)
         self.stream.truncate()
         return frame
 
     def takeFrame(self):
         pass
 
-    def get_frame(self):
-        if len(self.Frames):
-            return self.Frames.pop(0)
-        else:
-            return 0
+    #def get_frame(self):
+    #    if len(self.Frames):
+    #        return self.Frames.pop(0)
+    #    else:
+    #        return 0
 
 class AssignIP(RequestHandler):
     @asynchronous

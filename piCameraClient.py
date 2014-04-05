@@ -36,7 +36,7 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             global FRAME
             FRAME = str(m)
             m = zlib.decompress(str(m))
-            self.loop(m)
+            self.Show.loop(m)
         except Exception as e:
             m = json.loads(str(m))
             if m[0] == "EXIT":
@@ -63,11 +63,7 @@ class ReceiveWebSocket(TornadoWebSocketClient):
             print "Keep connection"
 
         
-    def loop(self, img):
-        if cv.WaitKey(10) == 27:
-            self.Show._finish()
-        decimg = self.Show._decode_image(img)
-        self.Show._show_image(decimg)
+
 
     def closed(self, code, reason=None):
         print "connection closed by:", reason
@@ -128,6 +124,12 @@ class ShowPicture():
                     self._finish()
                     break
 
+    def loop(self, img):
+        if cv.WaitKey(10) == 27:
+            self._finish()
+        decimg = self._decode_image(img)
+        self._show_image(decimg)
+
     def _decode_image(self, img):
         narray = self.np.fromstring(img, dtype="uint8")
         decimg = cv2.imdecode(narray, 1)
@@ -177,7 +179,7 @@ def con(host, port, Show):
         trial += 1
         time.sleep(0.5)
         ws = ReceiveWebSocket("ws://"+host+":"+port+"/camera",
-                     protocols=["http-only", "chat"], Show=Show)
+        protocols=["http-only", "chat"], Show=Show)
         ws.connect()
         IOLoop.current().start()
 
