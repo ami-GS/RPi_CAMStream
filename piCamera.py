@@ -59,7 +59,7 @@ class RpiWSHandler(WebSocketHandler):
     
     def loop(self):
         def _send_image(m):
-            m = zlib.compress(image)
+            m = zlib.compress(m)
             self.write_message(m, binary = True)
         if status:
             image = self.camera.takeFrame()
