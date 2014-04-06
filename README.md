@@ -1,7 +1,10 @@
 RPi_CAMStream
 =============
-
 Take Picture using raspberry pi and send it to client with WebSocket
+
+###at present
+broser version is suitable to use
+
 
 ### TODO
 * Implement Tree Based P2P Network
