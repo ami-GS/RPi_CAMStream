@@ -5,6 +5,16 @@ import tornado.httpserver
 from tornado.ioloop import IOLoop
 import time
 
+class HttpHandler(tornado.web.RequestHandler):
+    def initialize(self):
+            pass
+
+    def get(self):
+        with open("./index.html") as f:
+            for line in f.readlines():
+                self.write(line)
+            self.finish()
+
 class WSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
@@ -59,6 +69,7 @@ def main():
         camera = Camera()
     print "complete initialization"
     app = tornado.web.Application([
+        (r"/", HttpHandler),
         (r"/camera", WSHandler, dict(camera=camera)),
     ])
     http_server = tornado.httpserver.HTTPServer(app)
