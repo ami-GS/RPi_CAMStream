@@ -6,7 +6,7 @@
 var img = document.getElementById("liveImg");
 var arrayBuffer;
 
-var ws = new WebSocket("ws://raspberrybci.local:8080/camera");
+var ws = new WebSocket("ws://localhost:8080/camera");
 ws.binaryType = 'arraybuffer';
 
 ws.onopen = function(){
@@ -15,6 +15,16 @@ ws.onopen = function(){
 ws.onmessage = function(evt){
 	arrayBuffer = evt.data;
 	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+};
+
+// TODO: have to be fix
+window.onbeforeunload = function(){
+    var st = "close";
+    var bin = new Uint8Array(st.length);
+    for (var i = 0; i < st.length; i++) {
+        bin[i] = st[i];
+    }
+    ws.send(bin.buffer);
 };
 
 function encode (input) {

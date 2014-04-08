@@ -5,6 +5,10 @@ import tornado.httpserver
 from tornado.ioloop import IOLoop
 import time
 
+
+WIDTH = 480
+HEIGHT = 360
+FPS = 30
 class HttpHandler(tornado.web.RequestHandler):
     def initialize(self):
             pass
@@ -25,6 +29,7 @@ class WSHandler(WebSocketHandler):
 
         if isinstance(self.camera, Camera):
             while self.state:
+                cv.WaitKey(1000/FPS)
                 self.loop()
         else:
             for foo in self.camera.capture_continuous(self.camera.stream, "jpeg", use_video_port=True):
@@ -37,6 +42,11 @@ class WSHandler(WebSocketHandler):
         img = self.camera.takeImage()
         self.write_message(img, binary=True)
 
+    def on_message(self, message):
+        print message
+        if str(message) == "close":
+            self.on_close()
+
     def on_close(self):
         self.state = False
         IOLoop.instance().stop()
@@ -44,8 +54,8 @@ class WSHandler(WebSocketHandler):
 class Camera():
     def __init__(self):
         self.capture = cv.CaptureFromCAM(0)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, 480)
-        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, 360)
+        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_WIDTH, WIDTH)
+        cv.SetCaptureProperty(self.capture, cv.CV_CAP_PROP_FRAME_HEIGHT, HEIGHT)
     
     def takeImage(self):
         img = cv.QueryFrame(self.capture)
@@ -55,8 +65,8 @@ class Camera():
 def piCamera():
     import picamera, io
     camera = picamera.PiCamera()
-    camera.resolution = (480, 360)
-    camera.framerate = 30
+    camera.resolution = (WIDTH, HEIGHT)
+    camera.framerate = FPS
     camera.led = False
     camera.stream = io.BytesIO()
     time.sleep(2)

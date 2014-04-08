@@ -12,6 +12,10 @@ ws.onmessage = function(evt){
 	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
 };
 
+window.onunload = function(evt){
+    ws.close(1000);
+};
+
 function encode (input) {
     var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
     var output = "";
