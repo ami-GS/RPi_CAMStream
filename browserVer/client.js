@@ -12,8 +12,9 @@ ws.onmessage = function(evt){
 	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
 };
 
-window.onunload = function(evt){
-    ws.close(1000);
+window.onbeforeunload = function(){
+    ws.send("close");
+    ws.close(1000)
 };
 
 function encode (input) {

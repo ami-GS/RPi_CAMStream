@@ -2,7 +2,7 @@ import cv2.cv as cv
 from tornado.websocket import WebSocketHandler
 import tornado.web
 import tornado.httpserver
-from tornado.ioloop import IOLoop
+from tornado.ioloop import IOLoop, PeriodicCallback
 import time
 
 
@@ -19,37 +19,47 @@ class HttpHandler(tornado.web.RequestHandler):
                 self.write(line)
             self.finish()
 
+sessions = {}
 class WSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
         self.state = True
 
     def open(self):
-        print("connection opened")
+        print(self.request.remote_ip, ": connection opened")
 
+        global sessions
+        sessions[self.request.remote_ip] = self
         if isinstance(self.camera, Camera):
-            while self.state:
-                cv.WaitKey(1000/FPS)
-                self.loop()
+            self.callback = PeriodicCallback(self.loop, 1000/FPS)
         else:
+            #TODO implement for non-blocking structure
             for foo in self.camera.capture_continuous(self.camera.stream, "jpeg", use_video_port=True):
                 self.camera.stream.seek(0)
                 self.write_message(self.camera.stream.read(), binary=True)
                 self.camera.stream.seek(0)
                 self.camera.stream.truncate()
+                if not self.state:
+                    self.on_close()
+                    break
+        self.callback.start()
 
     def loop(self):
         img = self.camera.takeImage()
-        self.write_message(img, binary=True)
+        for ip in sessions.keys():
+            sessions[ip].write_message(img, binary=True)
 
     def on_message(self, message):
-        print message
-        if str(message) == "close":
-            self.on_close()
+        try:
+            if str(message) == "close":
+                self.on_close()
+        except Exception as e:
+            print e
 
     def on_close(self):
-        self.state = False
-        IOLoop.instance().stop()
+        session = sessions.pop(self.request.remote_ip)
+        session.callback.stop()
+        print(self.request.remote_ip, ": connection closed")
 
 class Camera():
     def __init__(self):
@@ -75,7 +85,7 @@ def piCamera():
 def main():
     try:
         camera = piCamera()
-    except:
+    except ImportError:
         camera = Camera()
     print "complete initialization"
     app = tornado.web.Application([

@@ -17,14 +17,9 @@ ws.onmessage = function(evt){
 	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
 };
 
-// TODO: have to be fix
 window.onbeforeunload = function(){
-    var st = "close";
-    var bin = new Uint8Array(st.length);
-    for (var i = 0; i < st.length; i++) {
-        bin[i] = st[i];
-    }
-    ws.send(bin.buffer);
+    ws.send("close");
+    ws.close(1000)
 };
 
 function encode (input) {
