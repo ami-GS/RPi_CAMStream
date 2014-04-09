@@ -4,6 +4,7 @@ import tornado.web
 import tornado.httpserver
 from tornado.ioloop import IOLoop, PeriodicCallback
 import time
+from threading import Thread
 
 
 WIDTH = 480
@@ -32,17 +33,22 @@ class WSHandler(WebSocketHandler):
         sessions[self.request.remote_ip] = self
         if isinstance(self.camera, Camera):
             self.callback = PeriodicCallback(self.loop, 1000/FPS)
+            self.callback.start()
         else:
             #TODO implement for non-blocking structure
-            for foo in self.camera.capture_continuous(self.camera.stream, "jpeg", use_video_port=True):
-                self.camera.stream.seek(0)
-                self.write_message(self.camera.stream.read(), binary=True)
-                self.camera.stream.seek(0)
-                self.camera.stream.truncate()
-                if not self.state:
-                    self.on_close()
-                    break
-        self.callback.start()
+            t = Thread(target=self.rloop)
+            t.setDaemon(True)
+            t.start()
+
+    def rloop(self):
+        for foo in self.camera.capture_continuous(self.camera.stream, "jpeg", use_video_port=True):
+            self.camera.stream.seek(0)
+            self.write_message(self.camera.stream.read(), binary=True)
+            self.camera.stream.seek(0)
+            self.camera.stream.truncate()
+            if not self.state:
+                break
+
 
     def loop(self):
         img = self.camera.takeImage()
@@ -57,8 +63,12 @@ class WSHandler(WebSocketHandler):
             print e
 
     def on_close(self):
-        session = sessions.pop(self.request.remote_ip)
-        session.callback.stop()
+        if isinstance(self.camera, Camera):
+            session = sessions.pop(self.request.remote_ip)
+            session.callback.stop()
+        else:
+            self.state = False
+        self.close()
         print(self.request.remote_ip, ": connection closed")
 
 class Camera():
