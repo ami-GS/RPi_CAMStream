@@ -18,8 +18,7 @@ ws.onmessage = function(evt){
 };
 
 window.onbeforeunload = function(){
-    ws.send("close");
-    ws.close(1000)
+    ws.close(1000); //Is this needed??
 };
 
 function encode (input) {

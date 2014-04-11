@@ -2,7 +2,7 @@ import cv2.cv as cv
 from tornado.websocket import WebSocketHandler
 import tornado.web
 import tornado.httpserver
-from tornado.ioloop import IOLoop, PeriodicCallback
+from tornado.ioloop import IOLoop
 import time
 from threading import Thread
 
@@ -10,17 +10,14 @@ from threading import Thread
 WIDTH = 480
 HEIGHT = 360
 FPS = 30
+sessions = {}
 class HttpHandler(tornado.web.RequestHandler):
     def initialize(self):
             pass
 
     def get(self):
-        with open("./index.html") as f:
-            for line in f.readlines():
-                self.write(line)
-            self.finish()
+        self.render("./index.html")
 
-sessions = {}
 class WSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
@@ -28,48 +25,32 @@ class WSHandler(WebSocketHandler):
 
     def open(self):
         print(self.request.remote_ip, ": connection opened")
-
-        global sessions
         sessions[self.request.remote_ip] = self
-        if isinstance(self.camera, Camera):
-            self.callback = PeriodicCallback(self.loop, 1000/FPS)
-            self.callback.start()
-        else:
-            #TODO implement for non-blocking structure
-            t = Thread(target=self.rloop)
-            t.setDaemon(True)
-            t.start()
 
-    def rloop(self):
-        for foo in self.camera.capture_continuous(self.camera.stream, "jpeg", use_video_port=True):
-            self.camera.stream.seek(0)
-            self.write_message(self.camera.stream.read(), binary=True)
-            self.camera.stream.seek(0)
-            self.camera.stream.truncate()
-            if not self.state:
-                break
+    @staticmethod
+    def rloop(camera):
+        for foo in camera.capture_continuous(camera.stream, "jpeg", use_video_port=True):
+            camera.stream.seek(0)
+            img = camera.stream.read()
+            for ip in sessions.keys():
+                sessions[ip].write_message(img, binary=True)
+            camera.stream.seek(0)
+            camera.stream.truncate()
 
-
-    def loop(self):
-        img = self.camera.takeImage()
-        for ip in sessions.keys():
-            sessions[ip].write_message(img, binary=True)
-
-    def on_message(self, message):
-        try:
-            if str(message) == "close":
-                self.on_close()
-        except Exception as e:
-            print e
+    @staticmethod
+    def loop(camera):
+        print "a"
+        while True:
+            img = camera.takeImage()
+            for ip in sessions.keys():
+                sessions[ip].write_message(img, binary=True)
+            cv.WaitKey(1000/FPS)
 
     def on_close(self):
-        if isinstance(self.camera, Camera):
-            session = sessions.pop(self.request.remote_ip)
-            session.callback.stop()
-        else:
-            self.state = False
-        self.close()
+        self.state = False
+        session = sessions.pop(self.request.remote_ip)
         print(self.request.remote_ip, ": connection closed")
+
 
 class Camera():
     def __init__(self):
@@ -95,8 +76,12 @@ def piCamera():
 def main():
     try:
         camera = piCamera()
+        t = Thread(target = WSHandler.rloop, args=(camera,))
     except ImportError:
         camera = Camera()
+        t = Thread(target = WSHandler.loop, args=(camera,))
+    t.setDaemon(True)
+    t.start()
     print "complete initialization"
     app = tornado.web.Application([
         (r"/", HttpHandler),
