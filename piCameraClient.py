@@ -14,6 +14,7 @@ import json
 from imageprocess import ImageProcess
 
 INTERVAL = 10#100
+FPS = 30
 status = True
 FRAME = ""
 class ReceiveWebSocket(TornadoWebSocketClient):
@@ -125,7 +126,7 @@ class ShowPicture():
                     break
 
     def loop(self, img):
-        if cv.WaitKey(10) == 27:
+        if cv.WaitKey(1000/FPS) == 27:
             self._finish()
         decimg = self._decode_image(img)
         self._show_image(decimg)
