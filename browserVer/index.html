@@ -4,10 +4,14 @@
 <title>livecamera</title>
 <body>
 <img id="liveImg" src="" width="480" height="360">
+<!--canvas id="liveCanvas" width="480" height="360">text</canvas-->
 <input type="button" value="copy frame" onclick="copyFrame()" />
 <img id="frame">
 <script type="text/javascript">
 var img = document.getElementById("liveImg");
+var canvas = document.getElementById("liveCanvas");
+var con = canvas.getContext("2d");
+var image = new Image();
 var arrayBuffer;
 
 var ws = new WebSocket("ws://localhost:8080/camera");
@@ -17,8 +21,10 @@ ws.onopen = function(){
 	console.log("connection was established");
 };
 ws.onmessage = function(evt){
-	arrayBuffer = evt.data;
-	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    arrayBuffer = evt.data;
+    img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    //image.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    //con.drawImage(image,0,0);
 };
 
 window.onbeforeunload = function(){
