@@ -39,7 +39,6 @@ class WSHandler(WebSocketHandler):
 
     @staticmethod
     def loop(camera):
-        print "a"
         while True:
             img = camera.takeImage()
             for ip in sessions.keys():

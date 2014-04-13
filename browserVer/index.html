@@ -1,7 +1,11 @@
 <html>
 <head>
+</head>
 <title>livecamera</title>
+<body>
 <img id="liveImg" src="" width="480" height="360">
+<input type="button" value="copy frame" onclick="copyFrame()" />
+<img id="frame">
 <script type="text/javascript">
 var img = document.getElementById("liveImg");
 var arrayBuffer;
@@ -20,6 +24,11 @@ ws.onmessage = function(evt){
 window.onbeforeunload = function(){
     ws.close(1000); //Is this needed??
 };
+
+function copyFrame() {
+    var cEle = document.getElementById("frame");
+    cEle.src = img.src;
+}
 
 function encode (input) {
     var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
@@ -48,5 +57,5 @@ function encode (input) {
     return output;
 }
 </script>
-</head>
+</body>
 </html>
