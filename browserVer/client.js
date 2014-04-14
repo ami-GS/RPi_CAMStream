@@ -1,21 +1,30 @@
 var img = document.getElementById("liveImg");
+//var canvas = document.getElementById("liveCanvas");
+//var con = canvas.getContext("2d");
+//var image = new Image();
 var arrayBuffer;
 
-var ws = new WebSocket("ws://raspberrybci.local:8080/camera");
+var ws = new WebSocket("ws://localhost:8080/camera");
 ws.binaryType = 'arraybuffer';
 
 ws.onopen = function(){
 	console.log("connection was established");
 };
 ws.onmessage = function(evt){
-	arrayBuffer = evt.data;
-	img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    arrayBuffer = evt.data;
+    img.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    //image.src = "data:image/jpeg;base64," + encode(new Uint8Array(arrayBuffer));
+    //con.drawImage(image,0,0);
 };
 
 window.onbeforeunload = function(){
-    ws.send("close");
-    ws.close(1000)
+    ws.close(1000); //Is this needed??
 };
+
+function copyFrame() {
+    var cEle = document.getElementById("frame");
+    cEle.src = img.src;
+}
 
 function encode (input) {
     var keyStr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
@@ -25,7 +34,7 @@ function encode (input) {
 
     while (i < input.length) {
         chr1 = input[i++];
-        chr2 = i < input.length ? input[i++] : Number.NaN; // Not sure if the index 
+        chr2 = i < input.length ? input[i++] : Number.NaN; // Not sure if the index
         chr3 = i < input.length ? input[i++] : Number.NaN; // checks are needed here
 
         enc1 = chr1 >> 2;
