@@ -21,10 +21,9 @@ class HttpHandler(tornado.web.RequestHandler):
 class WSHandler(WebSocketHandler):
     def initialize(self, camera):
         self.camera = camera
-        self.state = True
 
     def open(self):
-        print(self.request.remote_ip, ": connection opened")
+        print("%s : connection opened" % self.request.remote_ip)
         sessions[self.request.remote_ip] = self
 
     @staticmethod
@@ -46,9 +45,8 @@ class WSHandler(WebSocketHandler):
             cv.WaitKey(1000/FPS)
 
     def on_close(self):
-        self.state = False
-        session = sessions.pop(self.request.remote_ip)
-        print(self.request.remote_ip, ": connection closed")
+        sessions.pop(self.request.remote_ip)
+        print("%s : connection closed" % self.request.remote_ip)
 
 
 class Camera():
@@ -81,7 +79,7 @@ def main():
         t = Thread(target = WSHandler.loop, args=(camera,))
     t.setDaemon(True)
     t.start()
-    print "complete initialization"
+    print("complete initialization")
     app = tornado.web.Application([
         (r"/", HttpHandler),
         (r"/camera", WSHandler, dict(camera=camera)),
