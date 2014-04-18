@@ -12,7 +12,7 @@ class Camera(object):
     def takeImage(self):
         pass
 
-    def terminalte(self):
+    def terminate(self):
         pass
 
     def timeStamp(self):
