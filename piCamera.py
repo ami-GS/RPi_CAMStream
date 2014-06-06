@@ -56,7 +56,7 @@ class RpiWSHandler(WebSocketHandler):
 
     @staticmethod
     def rloop(camera):
-        for foo in camera.capture_continuous(camera.stream, "jpeg", use_video_port=True):
+        for foo in camera.camera.capture_continuous(camera.stream, "jpeg", use_video_port=True):
             camera.stream.seek(0)
             img = camera.stream.read()
             img = zlib.compress(img)
